@@ -1,27 +1,52 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
+
 const app = express();
 const port = process.env.PORT || 3000;
-
-let pastes = {};
 
 app.use(cors());
 app.use(bodyParser.json());
 
-app.post('/api/paste', (req, res) => {
+// Setup Supabase client
+const supabase = createClient(
+  'https://eajlcmeqfuakhwqnmmnx.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhamxjbWVxZnVha2h3cW5tbW54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU3MzIzMjUsImV4cCI6MjA2MTMwODMyNX0.NgOZQICk1zH5A0Sc4MTU9I91l3rXGhf37Vy9BOKYgIc'
+);
+
+app.post('/api/paste', async (req, res) => {
+  const text = req.body.text;
   const id = Math.random().toString(36).substr(2, 8);
-  pastes[id] = req.body.text;
+
+  const { data, error } = await supabase
+    .from('pastes')
+    .insert([
+      { id: id, content: text }
+    ]);
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to save paste' });
+  }
+
   res.json({ url: `https://copy.ulinnuha.id/paste.html?id=${id}` });
 });
 
-app.get('/api/paste/:id', (req, res) => {
-  const text = pastes[req.params.id];
-  if (text) {
-    res.json({ text });
-  } else {
-    res.status(404).json({ error: 'Paste not found' });
+app.get('/api/paste/:id', async (req, res) => {
+  const id = req.params.id;
+
+  const { data, error } = await supabase
+    .from('pastes')
+    .select('content')
+    .eq('id', id)
+    .single();
+
+  if (error || !data) {
+    return res.status(404).json({ error: 'Paste not found' });
   }
+
+  res.json({ text: data.content });
 });
 
 app.listen(port, () => {
